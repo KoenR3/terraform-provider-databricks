@@ -74,6 +74,7 @@ func (c *DatabricksClient) Authenticate() error {
 		c.configureAuthWithDirectParams,
 		c.AzureAuth.configureWithClientSecret,
 		c.AzureAuth.configureWithAzureCLI,
+		c.AzureAuth.configureWithManagedIdentity,
 		c.configureFromDatabricksCfg,
 	}
 	for _, authProvider := range authorizers {

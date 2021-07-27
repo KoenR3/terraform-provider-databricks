@@ -115,6 +115,7 @@ func (aa *AzureAuth) resourceID() string {
 
 // IsClientSecretSet returns true if client id/secret and tenand id are supplied
 func (aa *AzureAuth) IsClientSecretSet() bool {
+	// TODO: handle cases when SPN token is coming from either MSI or Azure CLI
 	return aa.ClientID != "" && aa.ClientSecret != "" && aa.TenantID != ""
 }
 
@@ -140,6 +141,22 @@ func (aa *AzureAuth) configureWithClientSecret() (func(r *http.Request) error, e
 
 	log.Printf("[INFO] Generating AAD token for Azure Service Principal")
 	return aa.simpleAADRequestVisitor(context.TODO(), aa.getClientSecretAuthorizer, aa.addSpManagementTokenVisitor)
+}
+
+func (aa *AzureAuth) configureWithManagedIdentity() (func(r *http.Request) error, error) {
+	if aa.databricksClient != nil && !aa.databricksClient.IsAzure() {
+		return nil, nil
+	}
+	ctx := context.TODO()
+	if !adal.MSIAvailable(ctx, aa.databricksClient.httpClient.HTTPClient) {
+		return nil, nil
+	}
+	log.Printf("[INFO] Using Azure Managed Identity authentication")
+	return aa.simpleAADRequestVisitor(ctx, func(resource string) (autorest.Authorizer, error) {
+		return auth.MSIConfig{
+			Resource: resource,
+		}.Authorizer()
+	}, aa.addSpManagementTokenVisitor)
 }
 
 func (aa *AzureAuth) addSpManagementTokenVisitor(r *http.Request, management autorest.Authorizer) error {
